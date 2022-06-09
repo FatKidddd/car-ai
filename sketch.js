@@ -7,7 +7,8 @@ function drawRect(x, y, w, h, color, haveBorder = true) {
   if (haveBorder) {
     strokeWeight(5);
     stroke(0);
-    scribble.scribbleRect(x, y, w, h);
+    // scribble.scribbleRect(x, y, w, h);
+    rect(x - w / 2, y - h / 2, w, h);
   }
 
   // let borderOffset = 1;
@@ -130,6 +131,7 @@ class Car extends Rect {
     this.mass = 150;
     this.rayLen = 200;
     this.wallThreshold = 10;
+    this.velCap = 100;
   }
 
   applyForce(f) {
@@ -137,7 +139,7 @@ class Car extends Rect {
     // stroke([0, 255, 0])
     // scribble.scribbleLine(this.pos.x, this.pos.y, this.pos.x + f.x * scl, this.pos.y + f.y * scl);
     this.vel.add(f);
-    // this.vel.limit(10);
+    this.vel.limit(this.velCap);
     if (this.vel.mag() > 0) {
       this.angle = this.vel.heading();
     }
@@ -245,7 +247,10 @@ class Car extends Rect {
         gameEnded = true;
       }
     }
-    res.push(this.vel.mag());
+    for (let i = 0; i < res.length; i++) {
+      res[i] /= this.rayLen;
+    }
+    res.push(this.vel.mag() / this.velCap);
     // console.log(res)
     return [res, gameEnded];
   }
@@ -259,7 +264,8 @@ class Car extends Rect {
     return [[botCenter.x, botCenter.y], [topCenter.x, topCenter.y]];
   }
 
-  passCheckpoint(checkpoints) {
+  passCheckpoint(track) {
+    const checkpoints = track.checkpoints;
     const bodyLineCoords = this.bodyLine;
     for (let i = 0; i < checkpoints.length; i++) {
       const checkpoint = checkpoints[i];
@@ -267,13 +273,24 @@ class Car extends Rect {
       const x3 = bodyLineCoords[0][0], y3 = bodyLineCoords[0][1], x4 = bodyLineCoords[1][0], y4 = bodyLineCoords[1][1];
       const [doesIntersect, t] = this.checkRayIntersect(x1, x2, y1, y2, x3, x4, y3, y4);
       if (doesIntersect) {
-        checkpoints[i] = [[-1e9, 0], [-1e9, 0]]; // set checkpoint to be arbitrarily far away so that can only pass through once
         this.color = [0, 180, 50];
+        if (i === Math.floor((checkpoints.length - 1)/ 2)) {
+          this.nearEnd(track);
+        }
         return true;
       }
     }
     this.color = [0, 50, 180];
     return false;
+  }
+
+  nearEnd(track) {
+    track.checkpoints.splice(0, 1);
+    track.leftWallCoords.splice(0, 1);
+    track.rightWallCoords.splice(0, 1);
+    // console.log(track.leftWallCoords.length);
+    track.generateTile();
+    // console.log(track.leftWallCoords.length);
   }
 }
 
@@ -292,32 +309,40 @@ class Track {
     return [this.leftWallCoords, this.rightWallCoords];
   }
   
+  generateTile() {
+    const maxTurn = PI / 2;
+    const angle = map(noise(c), 0, 1, -1, 1) * maxTurn;
+    const leftCoords = this.leftWallCoords[this.leftWallCoords.length - 1];
+    const rightCoords = this.rightWallCoords[this.rightWallCoords.length - 1];
+    const centreX = (leftCoords[0] + rightCoords[0]) / 2;
+    const centreY = (leftCoords[1] + rightCoords[1]) / 2;
+    const newCentreX = centreX + this.roadLength * cos(angle);
+    const newCentreY = centreY + this.roadLength * sin(angle);
+    const newLeftX = newCentreX + this.roadHeight / 2 * cos(PI / 2 - angle);
+    const newLeftY = newCentreY - this.roadHeight / 2 * sin(PI / 2 - angle);
+    const newRightX = newCentreX - this.roadHeight / 2 * cos(PI / 2 - angle);
+    const newRightY = newCentreY + this.roadHeight / 2 * sin(PI / 2 - angle);
+    this.leftWallCoords.push([newLeftX, newLeftY]);
+    this.rightWallCoords.push([newRightX, newRightY]);
+    this.checkpoints.push([[newLeftX, newLeftY], [newRightX, newRightY]]);
+    c += 0.1; // the higher the number the more random the noise
+    return [newCentreX, newCentreY, angle];
+  }
+  
   generateTrack() {
-    for (let i = 0; i < this.noOfRoads; i++, c += 0.1) {
+    let prevCentreX, prevCentreY;
+    for (let i = 0; i < this.noOfRoads; i++) {
       // const maxTurn = map(i, 0, 4, 0, PI / 2);
-      const maxTurn = PI / 2;
-      const angle = map(noise(c), 0, 1, -1, 1) * maxTurn;
-      const leftCoords = this.leftWallCoords[this.leftWallCoords.length - 1];
-      const rightCoords = this.rightWallCoords[this.rightWallCoords.length - 1];
-      const centreX = (leftCoords[0] + rightCoords[0]) / 2;
-      const centreY = (leftCoords[1] + rightCoords[1]) / 2;
-      const newCentreX = centreX + this.roadLength * cos(angle);
-      const newCentreY = centreY + this.roadLength * sin(angle);
-      const newLeftX = newCentreX + this.roadHeight / 2 * cos(PI / 2 - angle);
-      const newLeftY = newCentreY - this.roadHeight / 2 * sin(PI / 2 - angle);
-      const newRightX = newCentreX - this.roadHeight / 2 * cos(PI / 2 - angle);
-      const newRightY = newCentreY + this.roadHeight / 2 * sin(PI / 2 - angle);
-      this.leftWallCoords.push([newLeftX, newLeftY]);
-      this.rightWallCoords.push([newRightX, newRightY]);
-      this.checkpoints.push([[newLeftX, newLeftY], [newRightX, newRightY]]);
-      if (i === 0) {
-        car = new Car(createVector(newCentreX, newCentreY), angle);
+      const [newCentreX, newCentreY, angle] = this.generateTile();
+      if (i === Math.floor((this.noOfRoads - 1)/2)) {
+        car = new Car(createVector((prevCentreX + newCentreX)/2, (prevCentreY + newCentreY)/2), angle, track);
       }
+      prevCentreX = newCentreX, prevCentreY = newCentreY;
     }
   }
 
   displayTrack() {
-    for (let i = 1; i <= this.noOfRoads; i++) {
+    for (let i = 1; i < this.leftWallCoords.length; i++) {
       const left = this.leftWallCoords.slice(i - 1, i + 1);
       const right = this.rightWallCoords.slice(i - 1, i + 1);
       push();
@@ -333,17 +358,17 @@ class Track {
   }
 }
 
-let windowWidth = 1200;
+let windowWidth = 600;
 let windowHeight = 600;
-let noOfRoads = 30;
-let roadHeight = 120;
-let roadLength = 200;
+let noOfRoads = 16;
+let roadHeight = 100;
+let roadLength = 60;
 
 let car, track;
 let episode = 0;
 const losses = [];
 let c = 0;
-const dqn = new DQNAgent(6, 4, 128);
+const dqn = new DQNAgent(6, 4, 1000);
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -358,66 +383,77 @@ async function draw() {
   translate(-car.pos.x, -car.pos.y);
 
   if (keyIsDown(UP_ARROW)) car.accelerate();
-  if (keyIsDown(LEFT_ARROW)) car.steer(-1);
-  if (keyIsDown(RIGHT_ARROW)) car.steer(1);
+  if (keyIsDown(LEFT_ARROW)) {
+    car.accelerate();
+    car.steer(-1);
+  }
+  if (keyIsDown(RIGHT_ARROW)) {
+    car.accelerate();
+    car.steer(1);
+  }
   if (keyIsDown(DOWN_ARROW)) car.brake();
 
   track.displayTrack();
-  let [state, _] = car.getInputs(...track.wallCoords);
-  state = tf.tensor2d(state, [1, state.length]);
-  // console.log(state);
-  let action = await dqn.get_action(state);
-  // console.log(action);
 
-  const argMaxedAction = await tf.argMax(action).dataSync()[0];
-  // console.log(argMaxedAction);
+  let [state, _] = car.getInputs(...track.wallCoords);
+  // if (!globalDone) console.log(state);
+
+  state = tf.tensor2d(state, [1, state.length]);
 
   if (!globalDone) {
-    switch (argMaxedAction) {
-      case 0:
-        car.accelerate();
-        break;
-      case 1:
-        car.steer(-1);
-        break;
-      case 2:
-        car.steer(1);
-        break;
-      // case 3:
-      //   car.brake();
-      //   break;
-      default: // do nothing
-        break;
+    action = await dqn.get_action(state);
+    // console.log(action);
+    const argMaxedAction = await tf.argMax(action).dataSync()[0];
+    // console.log(argMaxedAction);
+    if (!globalDone) {
+      switch (argMaxedAction) {
+        case 0:
+          car.accelerate();
+          break;
+        case 1:
+          car.accelerate();
+          car.steer(-1);
+          break;
+        case 2:
+          car.accelerate();
+          car.steer(1);
+          break;
+        // case 3:
+        //   car.brake();
+        //   break;
+        default: // do nothing
+          break;
+      }
+      car.move();
     }
-    car.move();
   }
   car.display();
 
   let [next_state, done] = car.getInputs(...track.wallCoords, true);
-  let reward = Number(car.passCheckpoint(track.checkpoints)) * 5 - (2 - car.vel.mag());
-  if (done) reward = -10;
+  // if (!globalDone) console.log('next state', next_state);
 
-  // convert everything to javascript array first and with the correct dims
-  state = await state.arraySync();
-  action = [action];
-  next_state = [next_state];
-  reward = [reward];
-  done1d = [done];
+  // let reward = Number(car.passCheckpoint(track.checkpoints)) * 5 - (2 - car.vel.mag());
+  let reward = Number(car.passCheckpoint(track)) * 5;// + car.vel.mag();
+  if (done) reward = -200;
+  // console.log(reward);
 
-  dqn.remember(state, action, reward, next_state, done1d);
-  // if (!globalDone) {
-  //   globalDone = true;
-  //   await dqn.train_short_memory(state, action, reward, next_state, done1d);
-  //   globalDone = false;
-  // }
-
-  if (done && !globalDone) {
+  if (!globalDone) {
+    // convert everything to javascript array first and with the correct dims
+    state = await state.arraySync();
+    action = [action];
+    next_state = [next_state];
+    reward = [reward];
+    done1d = [done];
+    dqn.remember(state, action, reward, next_state, done1d);
     globalDone = true;
-    const loss = await dqn.train_long_memory();
-    losses.push(loss);
-    ++episode;
-    console.log('Episode ' + episode + ' - loss: ' + loss);
-    track = new Track(noOfRoads, roadHeight, roadLength);
+    await dqn.train_short_memory(state, action, reward, next_state, done1d);
+    if (done) {
+      const loss = await dqn.train_long_memory();
+      losses.push(loss);
+      ++episode;
+      console.log('Episode ' + episode + ' - loss: ' + loss);
+      track = new Track(noOfRoads, roadHeight, roadLength);
+    }
     globalDone = false;
   }
 }

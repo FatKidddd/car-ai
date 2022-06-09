@@ -48,32 +48,50 @@ class DQNAgent {
   async train_step(states, actions, rewards, next_states, dones) {
     const targets = await this.model.predict(states).arraySync();
 
-    for (let i = 0; i < dones.length; i++) {
-      let q_new = rewards[i];
-      if (!dones[i]) {
-        const next_state = tf.expandDims(next_states[i], 0);
-        q_new = (rewards[i] + this.gamma * tf.argMax(await this.model.predict(next_state).arraySync()[0]));
+    const arrayActions = await actions.arraySync();
+    const arrayDones = await dones.arraySync();
+    const arrayRewards = await rewards.arraySync();
+    const arrayNextStates = await next_states.arraySync();
+
+    // console.log(arrayDones);
+    for (let i = 0; i < arrayDones.length; i++) {
+      // console.log('Reward: ', arrayRewards[i]);
+      let q_new = arrayRewards[i];
+      // console.log('Target: ', targets[i]);
+      if (!arrayDones[i]) {
+        const next_state = tf.expandDims(arrayNextStates[i], 0);
+        const future_reward = await this.model.predict(next_state).arraySync()[0];
+        // console.log('Future Reward: ', future_reward);
+        // console.log('Max future reward: ', max(...future_reward));
+        q_new = (arrayRewards[i] + this.gamma * max(...future_reward));
+        // console.log('Q new: ', q_new);
       }
-      targets[i][await tf.argMax(actions[i]).dataSync()[0]] = q_new;
+      const action_idx = await tf.argMax(arrayActions[i]).dataSync()[0];
+      // console.log(action_idx);
+      targets[i][action_idx] = q_new;
+      // console.log('Final Target: ', targets[i]);
     }
 
-    const history = await this.model.fit(states, targets, { epochs: 1 });
+    const tensorTargets = tf.tensor(targets);
+
+    const history = await this.model.fit(states, tensorTargets, { epochs: 1 });
     // console.log(history);
     return history.history.loss[0];
   }
 	
   async train_short_memory(state, action, reward, next_state, done) {
+    // console.log(state, action, reward, next_state, done);
     return await this.train_step(tf.tensor(state), tf.tensor(action), tf.tensor(reward), tf.tensor(next_state), tf.tensor(done));
   }
 
   async train_long_memory() {
     const minibatch = await randomSample(this.memory, min(this.memory.length, this.batch_size));
     let [states, actions, rewards, next_states, dones] = zip(...minibatch);
-    console.log(states)
-    console.log(actions)
-    console.log(rewards)
-    console.log(next_states)
-    console.log(dones)
+    // console.log(states)
+    // console.log(actions)
+    // console.log(rewards)
+    // console.log(next_states)
+    // console.log(dones)
     states = tf.squeeze(states);
     actions = tf.squeeze(actions);
     rewards = tf.squeeze(rewards);
