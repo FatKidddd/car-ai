@@ -2,7 +2,8 @@ class DQNAgent {
   constructor(state_size, action_size, batch_size=32) {
     this.state_size = state_size;
     this.action_size = action_size;
-    this.memory = [];;
+    this.memory = [];
+    this.memory_max_len = 100000;
     this.gamma = 0.95;
     this.epsilon = 1.0;
     this.epsilon_min = 0.001;
@@ -28,6 +29,7 @@ class DQNAgent {
 
   remember(state, action, reward, next_state, done) {
     this.memory.push([state, action, reward, next_state, done]);
+    if (this.memory.length > this.memory_max_len) this.memory.shift();
   }
 
   async get_action(state) {
@@ -80,24 +82,17 @@ class DQNAgent {
   }
 	
   async train_short_memory(state, action, reward, next_state, done) {
-    // console.log(state, action, reward, next_state, done);
     return await this.train_step(tf.tensor(state), tf.tensor(action), tf.tensor(reward), tf.tensor(next_state), tf.tensor(done));
   }
 
   async train_long_memory() {
     const minibatch = await randomSample(this.memory, min(this.memory.length, this.batch_size));
     let [states, actions, rewards, next_states, dones] = zip(...minibatch);
-    // console.log(states)
-    // console.log(actions)
-    // console.log(rewards)
-    // console.log(next_states)
-    // console.log(dones)
     states = tf.squeeze(states);
     actions = tf.squeeze(actions);
     rewards = tf.squeeze(rewards);
     next_states = tf.squeeze(next_states);
     dones = tf.squeeze(dones);
-    // states.print();
     return await this.train_step(states, actions, rewards, next_states, dones);
   }
 }

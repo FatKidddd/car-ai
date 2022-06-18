@@ -1,69 +1,33 @@
 /* eslint-disable no-undef */
-let scribble = new Scribble();
-
-function drawRect(x, y, w, h, color, haveBorder = true) {
-  scribble.bowing = 0.1;
-  scribble.roughness = 0.8;
-  if (haveBorder) {
-    strokeWeight(5);
-    stroke(0);
-    // scribble.scribbleRect(x, y, w, h);
-    rect(x - w / 2, y - h / 2, w, h);
-  }
-
-  // let borderOffset = 1;
-  // let xl= x - w / 2 + borderOffset;
-  // let xr= x + w / 2 - borderOffset;
-  // let yt = y - h / 2 + borderOffset;
-  // let yb = y + h / 2 - borderOffset;
-  
-  // // reduce the sizes to fit in the rect
-  // if (yt>yb) {
-  //   yt -= borderOffset;
-  //   yb += borderOffset;
-  // } else {
-  //   yt += borderOffset;
-  //   yb -= borderOffset;
-  // }
-  // let xCoords = [xl, xr, xr, xl];
-  // let yCoords = [yt, yt, yb, yb];
-  // // the gap between two hachure lines
-  // let gap = 3.5;
-  // // the angle of the hachure in degrees
-  // let angle = 315;
-  // strokeWeight(3);
-  // stroke(...color);
-  // scribble.scribbleFilling(xCoords, yCoords, gap, angle);
-}
 
 class Rect {
-  constructor(w, h, color, pos, angle, haveBorder = true) {
+  constructor(w, h, color, pos, angle) {
     this.w = w;
     this.h = h;
     this.angle = angle;
     this.color = color;
     this.pos = pos;
-    this.haveBorder = haveBorder;
   }
 
   display() {
     push();
     translate(this.pos.x, this.pos.y);
     rotate(this.angle);
-    drawRect(0, 0, this.w, this.h, this.color, this.haveBorder);
+    strokeWeight(5);
+    stroke(0);
+    rect(-this.w / 2, -this.h / 2, this.w, this.h);
     translate(-this.pos.x, -this.pos.y);
     pop();
     // this.displayArms();
-    // this.topCenter;
   }
 
   displayArms() {
     stroke(255, 0, 0);
     strokeWeight(1);
-    scribble.scribbleLine(this.pos.x, this.pos.y, ...this.topLeftCorner);
-    scribble.scribbleLine(this.pos.x, this.pos.y, ...this.topRightCorner);
-    scribble.scribbleLine(this.pos.x, this.pos.y, ...this.botLeftCorner);
-    scribble.scribbleLine(this.pos.x, this.pos.y, ...this.botRightCorner);
+    line(this.pos.x, this.pos.y, ...this.topLeftCorner);
+    line(this.pos.x, this.pos.y, ...this.topRightCorner);
+    line(this.pos.x, this.pos.y, ...this.botLeftCorner);
+    line(this.pos.x, this.pos.y, ...this.botRightCorner);
   }
 
   get cornerDets() {
@@ -135,9 +99,6 @@ class Car extends Rect {
   }
 
   applyForce(f) {
-    let scl = 30;
-    // stroke([0, 255, 0])
-    // scribble.scribbleLine(this.pos.x, this.pos.y, this.pos.x + f.x * scl, this.pos.y + f.y * scl);
     this.vel.add(f);
     this.vel.limit(this.velCap);
     if (this.vel.mag() > 0) {
@@ -247,6 +208,8 @@ class Car extends Rect {
         gameEnded = true;
       }
     }
+    
+    // normalize inputs
     for (let i = 0; i < res.length; i++) {
       res[i] /= this.rayLen;
     }
@@ -273,28 +236,27 @@ class Car extends Rect {
       const x3 = bodyLineCoords[0][0], y3 = bodyLineCoords[0][1], x4 = bodyLineCoords[1][0], y4 = bodyLineCoords[1][1];
       const [doesIntersect, t] = this.checkRayIntersect(x1, x2, y1, y2, x3, x4, y3, y4);
       if (doesIntersect) {
-        this.color = [0, 180, 50];
+        // this.color = [0, 180, 50];
         if (i === Math.floor((checkpoints.length - 1)/ 2)) {
           this.nearEnd(track);
         }
         return true;
       }
     }
-    this.color = [0, 50, 180];
+    // this.color = [0, 50, 180];
     return false;
   }
 
   nearEnd(track) {
-    track.checkpoints.splice(0, 1);
-    track.leftWallCoords.splice(0, 1);
-    track.rightWallCoords.splice(0, 1);
-    // console.log(track.leftWallCoords.length);
+    track.checkpoints.shift();
+    track.leftWallCoords.shift();
+    track.rightWallCoords.shift();
     track.generateTile();
-    // console.log(track.leftWallCoords.length);
   }
 }
 
 class Track {
+  // infinite track generation
   constructor(noOfRoads, roadHeight, roadLength) {
     this.leftWallCoords = [[0, -roadHeight/2]];
     this.rightWallCoords = [[0, roadHeight/2]];
@@ -311,7 +273,7 @@ class Track {
   
   generateTile() {
     const maxTurn = PI / 2;
-    const angle = map(noise(c), 0, 1, -1, 1) * maxTurn;
+    const angle = map(noise(noiseInput), 0, 1, -1, 1) * maxTurn;
     const leftCoords = this.leftWallCoords[this.leftWallCoords.length - 1];
     const rightCoords = this.rightWallCoords[this.rightWallCoords.length - 1];
     const centreX = (leftCoords[0] + rightCoords[0]) / 2;
@@ -325,14 +287,13 @@ class Track {
     this.leftWallCoords.push([newLeftX, newLeftY]);
     this.rightWallCoords.push([newRightX, newRightY]);
     this.checkpoints.push([[newLeftX, newLeftY], [newRightX, newRightY]]);
-    c += 0.1; // the higher the number the more random the noise
+    noiseInput += 0.1; // the higher the number the more random the noise
     return [newCentreX, newCentreY, angle];
   }
   
   generateTrack() {
     let prevCentreX, prevCentreY;
     for (let i = 0; i < this.noOfRoads; i++) {
-      // const maxTurn = map(i, 0, 4, 0, PI / 2);
       const [newCentreX, newCentreY, angle] = this.generateTile();
       if (i === Math.floor((this.noOfRoads - 1)/2)) {
         car = new Car(createVector((prevCentreX + newCentreX)/2, (prevCentreY + newCentreY)/2), angle, track);
@@ -341,18 +302,26 @@ class Track {
     }
   }
 
-  displayTrack() {
+  displayTrack(showCheckpoints=false) {
     for (let i = 1; i < this.leftWallCoords.length; i++) {
       const left = this.leftWallCoords.slice(i - 1, i + 1);
       const right = this.rightWallCoords.slice(i - 1, i + 1);
       push();
       // strokeWeight(10);
-      stroke(0, 255, 0);
       fill(255);
-      strokeWeight(10)
+      noStroke();
       quad(...left[0], ...left[1], ...right[1], ...right[0]);
-      // line(...left[0], ...left[1]);
-      // line(...right[0], ...right[1]);
+
+      stroke(0, 50, 200);
+      strokeWeight(10)
+      line(...left[0], ...left[1]);
+      line(...right[0], ...right[1]);
+
+      if (showCheckpoints) {
+        stroke(0, 150, 0);
+        strokeWeight(2);
+        line(...left[1], ...right[1]);
+      }
       pop();
     }
   }
@@ -360,93 +329,76 @@ class Track {
 
 let windowWidth = 600;
 let windowHeight = 600;
-let noOfRoads = 16;
 let roadHeight = 100;
 let roadLength = 60;
+let noOfRoads = Math.floor((windowWidth + windowHeight) / roadLength);
+let noiseInput = 0;
 
 let car, track;
 let episode = 0;
 const losses = [];
-let c = 0;
 const dqn = new DQNAgent(6, 4, 1000);
+
+let globalDone = false;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
   track = new Track(noOfRoads, roadHeight, roadLength);
 }
 
-let globalDone = false;
-
 async function draw() {
   background(200);
   translate(windowWidth / 2, windowHeight / 2);
   translate(-car.pos.x, -car.pos.y);
 
-  if (keyIsDown(UP_ARROW)) car.accelerate();
-  if (keyIsDown(LEFT_ARROW)) {
-    car.accelerate();
-    car.steer(-1);
-  }
-  if (keyIsDown(RIGHT_ARROW)) {
-    car.accelerate();
-    car.steer(1);
-  }
-  if (keyIsDown(DOWN_ARROW)) car.brake();
-
-  track.displayTrack();
+  track.displayTrack(false);
 
   let [state, _] = car.getInputs(...track.wallCoords);
-  // if (!globalDone) console.log(state);
 
   state = tf.tensor2d(state, [1, state.length]);
 
   if (!globalDone) {
     action = await dqn.get_action(state);
-    // console.log(action);
     const argMaxedAction = await tf.argMax(action).dataSync()[0];
-    // console.log(argMaxedAction);
-    if (!globalDone) {
-      switch (argMaxedAction) {
-        case 0:
-          car.accelerate();
-          break;
-        case 1:
-          car.accelerate();
-          car.steer(-1);
-          break;
-        case 2:
-          car.accelerate();
-          car.steer(1);
-          break;
-        // case 3:
-        //   car.brake();
-        //   break;
-        default: // do nothing
-          break;
-      }
-      car.move();
+    switch (argMaxedAction) {
+      case 0:
+        car.accelerate();
+        break;
+      case 1:
+        car.accelerate();
+        car.steer(-1);
+        break;
+      case 2:
+        car.accelerate();
+        car.steer(1);
+        break;
+      // case 3:
+      //   car.brake();
+      //   break;
+      default: // do nothing
+        break;
     }
+    car.move();
   }
   car.display();
 
-  let [next_state, done] = car.getInputs(...track.wallCoords, true);
-  // if (!globalDone) console.log('next state', next_state);
+  let [next_state, done] = car.getInputs(...track.wallCoords, showRay=true);
 
-  // let reward = Number(car.passCheckpoint(track.checkpoints)) * 5 - (2 - car.vel.mag());
   let reward = Number(car.passCheckpoint(track)) * 5;// + car.vel.mag();
   if (done) reward = -200;
-  // console.log(reward);
 
+  // train
   if (!globalDone) {
-    // convert everything to javascript array first and with the correct dims
-    state = await state.arraySync();
-    action = [action];
+    // convert everything to javascript array first and with the correct dims, commented shape
+    state = await state.arraySync(); // (1, state_size)
+    action = [action]; // (1, action_size)
     next_state = [next_state];
-    reward = [reward];
-    done1d = [done];
+    reward = [reward]; // (1,)
+    done1d = [done]; // (1,)
     dqn.remember(state, action, reward, next_state, done1d);
     globalDone = true;
-    await dqn.train_short_memory(state, action, reward, next_state, done1d);
+    // train short memory removed because it makes the game laggy
+    // await dqn.train_short_memory(state, action, reward, next_state, done1d); 
     if (done) {
       const loss = await dqn.train_long_memory();
       losses.push(loss);
@@ -457,3 +409,14 @@ async function draw() {
     globalDone = false;
   }
 }
+
+  // if (keyIsDown(UP_ARROW)) car.accelerate();
+  // if (keyIsDown(LEFT_ARROW)) {
+  //   car.accelerate();
+  //   car.steer(-1);
+  // }
+  // if (keyIsDown(RIGHT_ARROW)) {
+  //   car.accelerate();
+  //   car.steer(1);
+  // }
+  // if (keyIsDown(DOWN_ARROW)) car.brake();
